@@ -28,10 +28,12 @@ jobs:
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
       run: node index.js
-
+      
     - name: Commit and Push changes
       run: |
         git config --global user.name "EbookBot"
         git config --global user.email "bot@github.com"
+        
+        # On écrase poliment mais fermement les conflits en forçant le push
         git add seen_books.json
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Mise à jour de l'historique" && git push)
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Mise à jour de l'historique" && git push --force origin main)
