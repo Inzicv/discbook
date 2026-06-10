@@ -33,7 +33,14 @@ jobs:
       run: |
         git config --global user.name "EbookBot"
         git config --global user.email "bot@github.com"
-        
-        # On écrase poliment mais fermement les conflits en forçant le push
         git add seen_books.json
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Mise à jour de l'historique" && git push --force)
+        
+        # Si rien n'a changé, on s'arrête là tranquillement
+        if git diff --quiet && git diff --staged --quiet; then
+          echo "Aucun nouveau livre à sauvegarder."
+        else
+          git commit -m "Mise à jour de l'historique"
+          # Ruse ultime : on récupère les modifs du site d'abord, puis on push
+          git pull --rebase origin main
+          git push origin main
+        fi
