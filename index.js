@@ -1,5 +1,6 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
+const https = require('https'); // Module natif ultra-stable pour remplacer fetch
 
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK;
 const SEARCH_URL = 'https://z-lib.fm/s/?yearFrom=2026&languages%5B%5D=french&extensions%5B%5D=EPUB';
@@ -16,10 +17,8 @@ const BASE_URL = 'https://z-lib.fm';
   console.log(`[Étape 1] Connexion à la page de recherche...`);
   await page.goto(SEARCH_URL, { waitUntil: 'networkidle' });
 
-  // Extraction de tous les liens de livres présents dans la liste de recherche
   const bookLinks = await page.evaluate((base) => {
     const links = [];
-    // On attrape tous les liens qui mènent vers une fiche de livre
     document.querySelectorAll('a[href*="/book/"]').forEach(a => {
       let href = a.getAttribute('href');
       if (href) {
@@ -32,7 +31,6 @@ const BASE_URL = 'https://z-lib.fm';
 
   console.log(`-> Nombre de liens de livres trouvés : ${bookLinks.length}`);
 
-  // Gestion de l'historique pour ne pas doublonner
   let seenBooks = [];
   if (fs.existsSync(DB_FILE)) {
     seenBooks = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
@@ -47,13 +45,12 @@ const BASE_URL = 'https://z-lib.fm';
     console.log(`[Sécurité] Traitement limité aux ${limitedLinks.length} premiers livres.`);
   }
 
-  // [Étape 2] Boucle sur chaque fiche de livre sélectionnée
+  // [Étape 2] Boucle sur chaque fiche de livre
   for (const link of limitedLinks) {
     try {
       console.log(`Visite de la fiche : ${link}`);
       await page.goto(link, { waitUntil: 'networkidle' });
 
-      // Extraction des données en profondeur (Gestion des slots et du contenu brut HTML)
       const bookDetails = await page.evaluate((base, currentLink) => {
         const titleEl = document.querySelector('a.title');
         const authorEl = document.querySelector('.author a');
@@ -61,12 +58,10 @@ const BASE_URL = 'https://z-lib.fm';
         const descEl = document.querySelector('#bookDescriptionBox p');
         const dlEl = document.querySelector('a.addDownloadedBook');
 
-        // RUSE POUR LE TITRE : Si le slot masque le texte, on le nettoie depuis l'URL de la fiche
         let cleanTitle = '';
         if (titleEl && titleEl.textContent && titleEl.textContent.trim().length > 0) {
           cleanTitle = titleEl.textContent.trim();
         } else {
-          // Fallback chirurgical via l'URL
           cleanTitle = currentLink.split('/').pop().replace('.html', '').replace(/-/g, ' ');
           cleanTitle = cleanTitle.replace(/\b\w/g, l => l.toUpperCase());
         }
@@ -76,7 +71,6 @@ const BASE_URL = 'https://z-lib.fm';
 
         return {
           title: cleanTitle || 'Sans titre',
-          // .textContent force la lecture à travers le shadow DOM du composant
           author: authorEl?.textContent?.trim() || 'Auteur inconnu',
           coverUrl: coverEl?.getAttribute('src') || '',
           description: descEl?.textContent?.trim() || 'Pas de résumé disponible.',
@@ -86,18 +80,14 @@ const BASE_URL = 'https://z-lib.fm';
 
       console.log(`   [OK] Extraction réussie pour : "${bookDetails.title}"`);
 
-      // Sécurité longueur de texte pour la mise en forme de Discord
       if (bookDetails.description.length > 650) {
         bookDetails.description = bookDetails.description.substring(0, 650) + '...';
       }
 
-      // Envoi de la fiche finale vers le salon d'annonces de modération Discord
-      await sendToDiscord(link, bookDetails);
+      // Envoi vers Discord via la nouvelle méthode robuste
+      await sendToDiscord(bookDetails, link);
       
-      // Archivage immédiat du lien dans l'historique
       seenBooks.push(link);
-      
-      // Pause de 3 secondes pour ne pas surcharger le site cible
       await new Promise(r => setTimeout(r, 3000));
 
     } catch (err) {
@@ -105,37 +95,54 @@ const BASE_URL = 'https://z-lib.fm';
     }
   }
 
-  // Sauvegarde définitive de l'historique mis à jour sur ton dépôt GitHub
   fs.writeFileSync(DB_FILE, JSON.stringify(seenBooks, null, 2));
   await browser.close();
   console.log("[Fin] Toutes les nouveautés du jour ont été vérifiées.");
 })();
 
-// Fonction de formatage pour envoyer la carte graphique sur Discord
-async function sendToDiscord(bookUrl, details) {
-  const payload = {
-    embeds: [{
-      title: `📚 ${details.title}`,
-      url: bookUrl,
-      color: 15105570, // Code couleur de la bordure latérale (Or/Orange)
-      description: `**Résumé :**\n${details.description}`,
-      fields: [
-        { name: "✍️ Auteur", value: details.author, inline: true },
-        { name: "📥 Téléchargement", value: `[Télécharger l'EPUB](${details.downloadUrl})`, inline: true }
-      ],
-      image: { url: details.coverUrl },
-      footer: { text: "Club de Lecture - Modération" },
-      timestamp: new Date().toISOString()
-    }]
-  };
+// Nouvelle fonction d'envoi utilisant le module HTTPS natif (évite le bug du exit code 1)
+function sendToDiscord(details, bookUrl) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify({
+      embeds: [{
+        title: `📚 ${details.title}`,
+        url: bookUrl,
+        color: 15105570,
+        description: `**Résumé :**\n${details.description}`,
+        fields: [
+          { name: "✍️ Auteur", value: details.author, inline: true },
+          { name: "📥 Téléchargement", value: `[Télécharger l'EPUB](${details.downloadUrl})`, inline: true }
+        ],
+        image: { url: details.coverUrl },
+        footer: { text: "Club de Lecture - Modération" },
+        timestamp: new Date().toISOString()
+      }]
+    });
 
-  const response = await fetch(DISCORD_WEBHOOK_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    const urlObj = new URL(DISCORD_WEBHOOK_URL);
+    const options = {
+      hostname: urlObj.hostname,
+      path: urlObj.pathname + urlObj.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Discord a répondu avec le code : ${res.statusCode}`));
+      }
+    });
+
+    req.on('error', (e) => {
+      reject(e);
+    });
+
+    req.write(payload);
+    req.end();
   });
-
-  if (!response.ok) {
-    throw new Error(`Erreur API Discord: ${response.statusText}`);
-  }
 }
