@@ -4,7 +4,7 @@ import json
 import time
 import requests
 
-from firecrawl import FirecrawlApp
+from firecrawl import Firecrawl
 
 SEARCH_URL = ( 
     "https://z-lib.fm/s/?yearFrom=2026&languages%5B%5D=french&extensions%5B%5D=EPUB&order=date"
@@ -12,7 +12,7 @@ SEARCH_URL = (
     + str(int(time.time()))
 )
 
-app = FirecrawlApp(api_key=os.environ["FIRECRAWL_API_KEY"])
+app = Firecrawl(api_key=os.environ["FIRECRAWL_API_KEY"])
 WEBHOOK = os.environ["DISCORD_WEBHOOK"]
 
 # Chargement des livres déjà vus
@@ -26,10 +26,14 @@ except:
 already_seen_count = 0
 
 # Scraping page nouveautés
-result = app.scrape_url(SEARCH_URL)
+result = app.scrape(
+    SEARCH_URL,
+    only_main_content=True,
+    max_age=0,
+    formats=["markdown"]
+)
+
 markdown = result.markdown
-only_main_content = True
-maxAge=0
 
 
 # Extraction des liens /book/
