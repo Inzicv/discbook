@@ -1,4 +1,4 @@
-name: Check ebooks
+name: Check Ebooks
 
 on:
   schedule:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-bot:
+  check-books:
     runs-on: ubuntu-latest
 
     steps:
@@ -23,15 +23,17 @@ jobs:
       - name: Run scraper
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
-          VALIDATION_CHANNEL_ID: ${{ secrets.VALIDATION_CHANNEL_ID }}
-          PUBLIC_CHANNEL_ID: ${{ secrets.PUBLIC_CHANNEL_ID }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: python scraper.py
 
-      - name: Save database
+      - name: Save history
         run: |
           git config --global user.name "ebook-bot"
           git config --global user.email "bot@github.com"
-          git add seen_books.json ignored_books.json
-          git commit -m "Update books" || exit 0
+
+          git add seen_books.json
+
+          git diff --cached --quiet || git commit -m "Update seen books"
+
+          git pull --rebase origin main
           git push
