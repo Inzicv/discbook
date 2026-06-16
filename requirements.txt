@@ -1,4 +1,0 @@
-firecrawl-py
-discord.py
-python-dotenv
-requests
