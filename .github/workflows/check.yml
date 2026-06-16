@@ -1,46 +1,37 @@
-name: Check Ebooks Daily
+name: Check ebooks
 
 on:
   schedule:
-    # S'exécute automatiquement tous les jours à 08:00 UTC (9:00 ou 10:00 en France)
     - cron: '0 8 * * *'
-  workflow_dispatch: # Permet de le lancer à la main quand on veut
+    - cron: '0 20 * * *'
+
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-    - name: Install dependencies
-      run: |
-        npm install
-        npx playwright install chromium --with-deps
+      - run: pip install -r requirements.txt
 
-    - name: Run Scraper Script
-      env:
-        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-      run: node index.js
-      
-    - name: Commit and Push changes
-      run: |
-        git config --global user.name "EbookBot"
-        git config --global user.email "bot@github.com"
-        git add seen_books.json
-        
-        # Si rien n'a changé, on s'arrête là tranquillement
-        if git diff --quiet && git diff --staged --quiet; then
-          echo "Aucun nouveau livre à sauvegarder."
-        else
-          git commit -m "Mise à jour de l'historique"
-          # Ruse ultime : on récupère les modifs du site d'abord, puis on push
-          git pull --rebase origin main
-          git push origin main
-        fi
+      - name: Run scraper
+        env:
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          VALIDATION_CHANNEL_ID: ${{ secrets.VALIDATION_CHANNEL_ID }}
+          PUBLIC_CHANNEL_ID: ${{ secrets.PUBLIC_CHANNEL_ID }}
+        run: python scraper.py
+
+      - name: Save database
+        run: |
+          git config --global user.name "ebook-bot"
+          git config --global user.email "bot@github.com"
+          git add seen_books.json ignored_books.json
+          git commit -m "Update books" || exit 0
+          git push
