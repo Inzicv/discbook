@@ -24,6 +24,9 @@ already_seen_count = 0
 # Scraping page nouveautés
 result = app.scrape_url(SEARCH_URL)
 markdown = result.markdown
+only_main_content = True
+max_age = 0
+
 
 # Extraction des liens /book/
 book_urls = re.findall(r'https://z-lib\.fm/book/[^\s)]+', markdown)
