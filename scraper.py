@@ -1,6 +1,8 @@
+```python
 import os
 import re
 import json
+import time
 import requests
 
 from firecrawl import FirecrawlApp
@@ -17,6 +19,12 @@ try:
 except:
     seen_books = []
 
+# Premier lancement ?
+first_run = len(seen_books) == 0
+
+# Nombre de livres déjà vus d'affilée
+already_seen_count = 0
+
 # Scraping page nouveautés
 result = app.scrape_url(SEARCH_URL)
 markdown = result.markdown
@@ -24,64 +32,148 @@ markdown = result.markdown
 # Extraction des liens /book/
 book_urls = re.findall(r'https://z-lib\.fm/book/[^\s)]+', markdown)
 
-# Suppression doublons
+# Suppression des doublons
 book_urls = list(dict.fromkeys(book_urls))
 
-# Premier lancement = seulement 10 livres
-if len(seen_books) == 0:
-    new_books = book_urls[:10]
-else:
-    new_books = [url for url in book_urls if url not in seen_books]
+# Premier lancement = seulement les 10 premiers
+if first_run:
+    book_urls = book_urls[:10]
 
-print(f"{len(new_books)} nouveaux livres trouvés")
+print(f"{len(book_urls)} livres à analyser")
 
-for url in new_books:
+for url in book_urls:
 
     try:
         page = app.scrape_url(url)
         text = page.markdown
 
-        # Titre
+        # ------------------------
+        # TITRE
+        # ------------------------
         title_match = re.search(r'# (.+)', text)
         title = title_match.group(1).strip() if title_match else "Titre inconnu"
 
-        # Auteur
+        # ------------------------
+        # AUTEUR
+        # ------------------------
         author_match = re.search(r'_\[(.*?)\]', text)
         author = author_match.group(1).strip() if author_match else "Auteur inconnu"
 
-        # Image couverture
-        cover_match = re.search(r'!\[\]\((https://covers.*?)\)', text)
+        # ------------------------
+        # CLE UNIQUE
+        # ------------------------
+        book_key = (
+            f"{title.lower().strip()}|"
+            f"{author.lower().strip()}|"
+            f"{url}"
+        )
+
+        # ------------------------
+        # DEJA VU ?
+        # ------------------------
+        if book_key in seen_books:
+
+            already_seen_count += 1
+
+            print(f"Déjà vu : {title}")
+
+            # Si 10 livres déjà vus d'affilée,
+            # on considère qu'on est arrivé dans les anciennes nouveautés
+            if already_seen_count >= 10:
+                print("10 livres déjà vus d'affilée → arrêt")
+                break
+
+            continue
+
+        already_seen_count = 0
+
+        # ------------------------
+        # COUVERTURE
+        # ------------------------
+        cover_match = re.search(
+            r'!\[\]\((https://covers.*?)\)',
+            text
+        )
+
         cover = cover_match.group(1) if cover_match else ""
 
-        # Lien téléchargement
-        dl_match = re.search(r'\[epub.*?\]\((https://z-lib\.fm/dl/.*?)\)', text)
+        # ------------------------
+        # LIEN TELECHARGEMENT
+        # ------------------------
+        dl_match = re.search(
+            r'\[epub.*?\]\((https://z-lib\.fm/dl/.*?)\)',
+            text
+        )
+
         dl_url = dl_match.group(1) if dl_match else url
 
-        # Résumé
+        # ------------------------
+        # RESUME
+        # ------------------------
         desc_match = re.search(
             r'What’s the quality of the downloaded files\?\n\n(.*?)\n\nCategories:',
             text,
             re.S
         )
 
-        description = desc_match.group(1).strip() if desc_match else "Pas de résumé"
+        description = (
+            desc_match.group(1).strip()
+            if desc_match
+            else "Pas de résumé"
+        )
 
+        # Limite Discord
+        if len(description) > 1500:
+            description = description[:1500] + "..."
+
+        # ------------------------
+        # DISCORD
+        # ------------------------
         payload = {
-            "embeds": [{
-                "title": f"📚 {title}",
-                "description": f"✍ {author}\n\n{description}\n\n📥 {dl_url}",
-                "image": {
-                    "url": cover
+            "embeds": [
+                {
+                    "title": f"📚 {title}",
+                    "description": (
+                        f"✍ {author}\n\n"
+                        f"{description}\n\n"
+                        f"📥 {dl_url}"
+                    ),
+                    "color": 10181046,
+                    "image": {
+                        "url": cover
+                    },
+                    "footer": {
+                        "text": "Détecté automatiquement"
+                    }
                 }
-            }]
+            ]
         }
 
-        requests.post(WEBHOOK, json=payload)
+        response = requests.post(WEBHOOK, json=payload)
 
-        seen_books.append(url)
+        if response.status_code in [200, 204]:
+
+            print(f"Posté : {title}")
+
+            seen_books.append(book_key)
+
+        else:
+
+            print(f"Erreur Discord : {response.status_code}")
+
+        # Petite pause pour éviter de bourriner
+        time.sleep(1)
 
     except Exception as e:
+
+        print(f"Erreur sur {url}")
         print(e)
 
+# Sauvegarde
 with open("seen_books.json", "w", encoding="utf-8") as f:
-    json.dump(seen_books, f, indent=2, ensure_ascii=False)
+    json.dump(
+        seen_books,
+        f,
+        indent=2,
+        ensure_ascii=False
+    )
