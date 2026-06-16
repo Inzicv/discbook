@@ -6,11 +6,8 @@ import requests
 
 from firecrawl import Firecrawl
 
-SEARCH_URL = ( 
-    "https://z-lib.fm/s/?yearFrom=2026&languages%5B%5D=french&extensions%5B%5D=EPUB&order=date"
-    + "&nocache="
-    + str(int(time.time()))
-)
+SEARCH_URL = "https://z-lib.fm/s/?yearFrom=2026&languages%5B%5D=french&extensions%5B%5D=EPUB&order=date"
+
 
 app = Firecrawl(api_key=os.environ["FIRECRAWL_API_KEY"])
 WEBHOOK = os.environ["DISCORD_WEBHOOK"]
