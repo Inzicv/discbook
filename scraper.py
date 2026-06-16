@@ -18,9 +18,6 @@ try:
 except:
     seen_books = []
 
-# Premier lancement ?
-first_run = len(seen_books) == 0
-
 # Nombre de livres déjà vus d'affilée
 already_seen_count = 0
 
@@ -33,10 +30,6 @@ book_urls = re.findall(r'https://z-lib\.fm/book/[^\s)]+', markdown)
 
 # Suppression des doublons
 book_urls = list(dict.fromkeys(book_urls))
-
-# Premier lancement = seulement les 10 premiers
-if first_run:
-    book_urls = book_urls[:10]
 
 print(f"{len(book_urls)} livres à analyser")
 
