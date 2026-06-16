@@ -1,9 +1,0 @@
-{
-  "name": "bot-livres-discord",
-  "version": "1.0.0",
-  "description": "Mon bot de livres",
-  "main": "index.js",
-  "dependencies": {
-    "playwright": "^1.40.0"
-  }
-}
