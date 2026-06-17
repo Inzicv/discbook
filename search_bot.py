@@ -33,7 +33,6 @@ async def on_ready():
 )
 async def book(interaction: discord.Interaction, recherche: str):
 
-    # On prévient Discord qu'on travaille
     await interaction.response.defer()
 
     try:
@@ -45,34 +44,34 @@ async def book(interaction: discord.Interaction, recherche: str):
             )
             return
 
+        emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+
         message = f'📚 Résultats pour "{recherche}"\n\n'
 
-emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+        for i, book in enumerate(books):
 
-for i, book in enumerate(books):
+            flag = "🇫🇷"
 
-    flag = "🇫🇷"
+            if book["language"] == "English":
+                flag = "🇬🇧"
 
-    if book["language"] == "English":
-        flag = "🇬🇧"
+            message += (
+                f'{emojis[i]} {flag} '
+                f'{book["title"]} - {book["author"]}\n\n'
+            )
 
-    message += (
-        f'{emojis[i]} '
-        f'{flag} '
-        f'{book["title"]} - {book["author"]}\n\n'
-    )
+        message += (
+            "\nRéagis avec 1️⃣ 2️⃣ 3️⃣ 4️⃣ ou 5️⃣ "
+            "pour afficher la fiche complète."
+        )
 
-message += (
-    "\nRéagis avec 1️⃣ 2️⃣ 3️⃣ 4️⃣ ou 5️⃣ "
-    "pour afficher la fiche complète."
-)
         await interaction.followup.send(message)
 
     except Exception as e:
+        print(e)
         await interaction.followup.send(
             f"❌ Erreur : {e}"
         )
-        print(e)
 
 
 bot.run(TOKEN)
