@@ -47,9 +47,25 @@ async def book(interaction: discord.Interaction, recherche: str):
 
         message = f'📚 Résultats pour "{recherche}"\n\n'
 
-        for i, url in enumerate(books, start=1):
-            message += f"{i}. {url}\n"
+emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
 
+for i, book in enumerate(books):
+
+    flag = "🇫🇷"
+
+    if book["language"] == "English":
+        flag = "🇬🇧"
+
+    message += (
+        f'{emojis[i]} '
+        f'{flag} '
+        f'{book["title"]} - {book["author"]}\n\n'
+    )
+
+message += (
+    "\nRéagis avec 1️⃣ 2️⃣ 3️⃣ 4️⃣ ou 5️⃣ "
+    "pour afficher la fiche complète."
+)
         await interaction.followup.send(message)
 
     except Exception as e:
