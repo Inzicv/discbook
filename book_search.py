@@ -4,13 +4,15 @@ from firecrawl import Firecrawl
 
 app = Firecrawl(api_key=os.environ["FIRECRAWL_API_KEY"])
 
+ALLOWED_LANGUAGES = ["French", "English"]
+
 
 def search_books(query):
 
     search_url = (
         "https://z-lib.fm/s/"
         + query.replace(" ", "%20")
-        + "/?languages%5B0%5D=french&extensions%5B0%5D=EPUB&order=date"
+        + "/?extensions%5B0%5D=EPUB&order=date"
     )
 
     result = app.scrape(
@@ -22,11 +24,33 @@ def search_books(query):
 
     markdown = result.markdown
 
-    book_urls = re.findall(
-        r'https://z-lib\.fm/book/[^\s)]+',
-        markdown
+    matches = re.findall(
+        r'\[(.*?)\]\((https://z-lib\.fm/book/[^\)]+)\).*?Author:\s*(.*?)\n.*?Language:\s*(.*?)\n',
+        markdown,
+        re.S
     )
 
-    book_urls = list(dict.fromkeys(book_urls))
+    books = []
 
-    return book_urls[:5]
+    for title, url, author, language in matches:
+
+        language = language.strip()
+
+        if language not in ALLOWED_LANGUAGES:
+            continue
+
+        books.append({
+            "title": title.strip(),
+            "author": author.strip(),
+            "language": language,
+            "url": url
+        })
+
+    # suppression des doublons
+    uniques = []
+
+    for book in books:
+        if book not in uniques:
+            uniques.append(book)
+
+    return uniques[:5]
