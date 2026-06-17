@@ -10,68 +10,120 @@ TOKEN = os.environ["DISCORD_TOKEN"]
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(
+    command_prefix="!",
+    intents=intents
+)
+
+last_results = {}
+
+emoji_map = {
+    "1️⃣": 0,
+    "2️⃣": 1,
+    "3️⃣": 2,
+    "4️⃣": 3,
+    "5️⃣": 4
+}
 
 
 @bot.event
 async def on_ready():
-    try:
-        synced = await bot.tree.sync()
-        print(f"{len(synced)} commande(s) synchronisée(s)")
-    except Exception as e:
-        print(e)
-
+    await bot.tree.sync()
     print(f"Connecté en tant que {bot.user}")
 
 
 @bot.tree.command(
     name="book",
-    description="Recherche un livre sur Z-Library"
+    description="Recherche un livre"
 )
 @app_commands.describe(
-    recherche="Titre, auteur ou mots-clés"
+    recherche="Titre ou auteur"
 )
 async def book(interaction: discord.Interaction, recherche: str):
 
     await interaction.response.defer()
 
-    try:
-        books = search_books(recherche)
+    books = search_books(recherche)
 
-        if not books:
-            await interaction.followup.send(
-                "❌ Aucun résultat trouvé."
-            )
-            return
+    if not books:
+        await interaction.followup.send(
+            "❌ Aucun résultat trouvé."
+        )
+        return
 
-        emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+    emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
 
-        message = f'📚 Résultats pour "{recherche}"\n\n'
+    message = f'📚 Résultats pour "{recherche}"\n\n'
 
-        for i, book in enumerate(books):
+    for i, book in enumerate(books):
 
-            flag = "🇫🇷"
+        flag = "🇫🇷"
 
-            if book["language"] == "English":
-                flag = "🇬🇧"
-
-            message += (
-                f'{emojis[i]} {flag} '
-                f'{book["title"]} - {book["author"]}\n\n'
-            )
+        if "english" in book["language"].lower():
+            flag = "🇬🇧"
 
         message += (
-            "\nRéagis avec 1️⃣ 2️⃣ 3️⃣ 4️⃣ ou 5️⃣ "
-            "pour afficher la fiche complète."
+            f'{emojis[i]} {flag} '
+            f'{book["title"]} - {book["author"]}\n'
         )
 
-        await interaction.followup.send(message)
+    msg = await interaction.followup.send(message)
 
-    except Exception as e:
-        print(e)
-        await interaction.followup.send(
-            f"❌ Erreur : {e}"
-        )
+    last_results[msg.id] = books
+
+    for emoji in emojis[:len(books)]:
+        await msg.add_reaction(emoji)
+
+
+@bot.event
+async def on_reaction_add(reaction, user):
+
+    if user.bot:
+        return
+
+    if reaction.message.id not in last_results:
+        return
+
+    if str(reaction.emoji) not in emoji_map:
+        return
+
+    index = emoji_map[str(reaction.emoji)]
+
+    books = last_results[reaction.message.id]
+
+    if index >= len(books):
+        return
+
+    book = books[index]
+
+    embed = discord.Embed(
+        title=book["title"],
+        description=book["description"][:4000],
+        color=0x9b59b6
+    )
+
+    embed.add_field(
+        name="✍ Auteur",
+        value=book["author"],
+        inline=False
+    )
+
+    embed.add_field(
+        name="🌍 Langue",
+        value=book["language"],
+        inline=False
+    )
+
+    embed.add_field(
+        name="📥 Télécharger",
+        value=book["download"],
+        inline=False
+    )
+
+    if book["cover"]:
+        embed.set_image(url=book["cover"])
+
+    await reaction.message.channel.send(embed=embed)
 
 
 bot.run(TOKEN)
