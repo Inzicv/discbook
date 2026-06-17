@@ -2,7 +2,7 @@ import os
 import discord
 from discord.ext import commands
 from discord import app_commands
-from zlib import search_books
+from book_search import search_books
 
 TOKEN = os.environ["DISCORD_TOKEN"]
 
