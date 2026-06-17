@@ -5,12 +5,15 @@ from firecrawl import Firecrawl
 app = Firecrawl(api_key=os.environ["FIRECRAWL_API_KEY"])
 
 
-def search_books(query):
+def search_books(query, language):
 
     search_url = (
         "https://z-lib.fm/s/"
         + query.replace(" ", "%20")
-        + "/?languages%5B0%5D=french&languages%5B1%5D=english&extensions%5B0%5D=EPUB&order=date"
+        + "/?e=1"
+        + f"&languages%5B0%5D={language}"
+        + "&extensions%5B0%5D=EPUB"
+        + "&order=date"
     )
 
     result = app.scrape(
@@ -75,7 +78,7 @@ def search_books(query):
                 re.S
             )
 
-            language = (
+            book_language = (
                 language_match.group(1).strip()
                 if language_match
                 else "?"
@@ -113,7 +116,7 @@ def search_books(query):
             books.append({
                 "title": title,
                 "author": author,
-                "language": language,
+                "language": book_language,
                 "url": url,
                 "cover": cover,
                 "download": dl_url,
