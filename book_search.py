@@ -45,6 +45,12 @@ def search_books(query):
 
             title_match = re.search(r"# (.+)", text)
             title = title_match.group(1).strip() if title_match else "Titre inconnu"
+                if (
+                    title == "Titre inconnu"
+                    or "reset filters" in title.lower()
+                    or title.startswith('"')
+                ):
+                    continue
 
             author_match = re.search(r"_\[(.*?)\]", text)
             author = author_match.group(1).strip() if author_match else "Auteur inconnu"
