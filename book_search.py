@@ -1,56 +1,70 @@
 import os
-import re
-from firecrawl import Firecrawl
+import discord
+from discord.ext import commands
+from discord import app_commands
 
-app = Firecrawl(api_key=os.environ["FIRECRAWL_API_KEY"])
+from book_search import search_books
 
-ALLOWED_LANGUAGES = ["French", "English"]
+TOKEN = os.environ["DISCORD_TOKEN"]
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 
-def search_books(query):
+@bot.event
+async def on_ready():
+    try:
+        synced = await bot.tree.sync()
+        print(f"{len(synced)} commande(s) synchronisée(s)")
+    except Exception as e:
+        print(e)
 
-    search_url = (
-        "https://z-lib.fm/s/"
-        + query.replace(" ", "%20")
-        + "/?extensions%5B0%5D=EPUB&order=date"
-    )
+    print(f"Connecté en tant que {bot.user}")
 
-    result = app.scrape(
-        search_url,
-        formats=["markdown"],
-        max_age=0,
-        only_main_content=True
-    )
 
-    markdown = result.markdown
+@bot.tree.command(
+    name="book",
+    description="Recherche un livre sur Z-Library"
+)
+@app_commands.describe(
+    recherche="Titre, auteur ou mots-clés"
+)
+async def book(interaction: discord.Interaction, recherche: str):
 
-    matches = re.findall(
-        r'\[(.*?)\]\((https://z-lib\.fm/book/[^\)]+)\).*?Author:\s*(.*?)\n.*?Language:\s*(.*?)\n',
-        markdown,
-        re.S
-    )
+    await interaction.response.defer()
 
-    books = []
+    try:
+        books = search_books(recherche)
 
-    for title, url, author, language in matches:
+        if not books:
+            await interaction.followup.send("❌ Aucun résultat trouvé.")
+            return
 
-        language = language.strip()
+        emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
 
-        if language not in ALLOWED_LANGUAGES:
-            continue
+        message = f'📚 Résultats pour "{recherche}"\n\n'
 
-        books.append({
-            "title": title.strip(),
-            "author": author.strip(),
-            "language": language,
-            "url": url
-        })
+        for i, book in enumerate(books):
 
-    # suppression des doublons
-    uniques = []
+            flag = "🇫🇷"
 
-    for book in books:
-        if book not in uniques:
-            uniques.append(book)
+            if book["language"] == "English":
+                flag = "🇬🇧"
 
-    return uniques[:5]
+            message += (
+                f'{emojis[i]} {flag} '
+                f'{book["title"]} - {book["author"]}\n\n'
+            )
+
+        await interaction.followup.send(message)
+
+    except Exception as e:
+        print(e)
+        await interaction.followup.send(
+            f"❌ Erreur : {e}"
+        )
+
+
+bot.run(TOKEN)
