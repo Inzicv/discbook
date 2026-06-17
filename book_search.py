@@ -23,6 +23,7 @@ def search_books(query):
     )
 
     markdown = result.markdown
+    print(markdown)
 
     matches = re.findall(
         r'\[(.*?)\]\((https://z-lib\.fm/book/[^\)]+)\).*?Author:\s*(.*?)\n.*?Language:\s*(.*?)\n',
