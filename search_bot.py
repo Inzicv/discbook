@@ -1,4 +1,3 @@
-```python
 import os
 import discord
 from discord.ext import commands
@@ -162,4 +161,3 @@ async def on_reaction_add(reaction, user):
 
 
 bot.run(TOKEN)
-```
