@@ -34,6 +34,7 @@ def search_books(query):
     for url in book_urls:
 
         try:
+
             page = app.scrape(
                 url,
                 formats=["markdown"],
@@ -43,37 +44,60 @@ def search_books(query):
 
             text = page.markdown
 
+            # Titre
             title_match = re.search(r"# (.+)", text)
-            title = title_match.group(1).strip() if title_match else "Titre inconnu"
-                if (
-                    title == "Titre inconnu"
-                    or "reset filters" in title.lower()
-                    or title.startswith('"')
-                ):
-                    continue
+            title = (
+                title_match.group(1).strip()
+                if title_match
+                else "Titre inconnu"
+            )
 
+            # Ignore les faux résultats
+            if (
+                title == "Titre inconnu"
+                or "reset filters" in title.lower()
+                or title.startswith('"')
+            ):
+                continue
+
+            # Auteur
             author_match = re.search(r"_\[(.*?)\]", text)
-            author = author_match.group(1).strip() if author_match else "Auteur inconnu"
+            author = (
+                author_match.group(1).strip()
+                if author_match
+                else "Auteur inconnu"
+            )
 
+            # Langue
             language_match = re.search(
                 r"Language:\n\n(.*?)\n\nFile:",
                 text,
                 re.S
             )
-            language = language_match.group(1).strip() if language_match else "?"
 
+            language = (
+                language_match.group(1).strip()
+                if language_match
+                else "?"
+            )
+
+            # Couverture
             cover_match = re.search(
                 r'!\[\]\((https://covers.*?)\)',
                 text
             )
+
             cover = cover_match.group(1) if cover_match else ""
 
+            # Lien téléchargement
             dl_match = re.search(
                 r'\[epub.*?\]\((https://z-lib\.fm/dl/.*?)\)',
                 text
             )
+
             dl_url = dl_match.group(1) if dl_match else url
 
+            # Résumé
             desc_match = re.search(
                 r"What’s the quality of the downloaded files\?\n\n(.*?)\n\nContent Type:",
                 text,
