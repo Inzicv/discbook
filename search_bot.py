@@ -1,4 +1,5 @@
 import os
+import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -38,8 +39,9 @@ language_map = {
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
+    synced = await bot.tree.sync()
     print(f"Connecté en tant que {bot.user}")
+    print(f"{len(synced)} commandes synchronisées")
 
 
 @bot.tree.command(
@@ -76,19 +78,48 @@ async def on_reaction_add(reaction, user):
     message_id = reaction.message.id
     emoji = str(reaction.emoji)
 
-    # Choix de la langue
+    #
+    # Choix de langue
+    #
     if message_id in pending_searches and emoji in language_map:
 
         query = pending_searches[message_id]
         language = language_map[emoji]
 
-        books = search_books(query, language)
+        # Empêche une deuxième recherche
+        del pending_searches[message_id]
+
+        await reaction.message.edit(
+            content=f"🔎 Recherche en {emoji}..."
+        )
+
+        try:
+
+            books = await asyncio.to_thread(
+                search_books,
+                query,
+                language
+            )
+
+        except Exception as e:
+
+            print(e)
+
+            await reaction.message.edit(
+                content=(
+                    "❌ Impossible de contacter Firecrawl.\n"
+                    "Réessaie dans quelques minutes."
+                )
+            )
+
+            return
 
         if not books:
+
             await reaction.message.edit(
                 content="❌ Aucun résultat trouvé."
             )
-            del pending_searches[message_id]
+
             return
 
         emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
@@ -102,19 +133,23 @@ async def on_reaction_add(reaction, user):
                 f'{book["title"]} - {book["author"]}\n'
             )
 
-        await reaction.message.clear_reactions()
+        try:
+            await reaction.message.clear_reactions()
+        except Exception:
+            pass
+
         await reaction.message.edit(content=content)
 
         last_results[message_id] = books
-
-        del pending_searches[message_id]
 
         for e in emojis[:len(books)]:
             await reaction.message.add_reaction(e)
 
         return
 
+    #
     # Sélection d'un livre
+    #
     if message_id not in last_results:
         return
 
